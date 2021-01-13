@@ -4,6 +4,6 @@ Advanced Operating Systems Projects
 #### Repo: 5143 Operating Systems Repo
 #### Email: rephaeledwards@gmail.com
 #### Image:
-![Esther Edwards](<https://user-images.githubusercontent.com/18561144/104398696-df5c3100-5514-11eb-9885-910b59452a1d.jpg>)
+![Esther Edwards](<https://github.com/bassref/5143-OS-Edwards/issues/2>)
 #### Avatar:
-![Avatar](<https://user-images.githubusercontent.com/18561144/104398639-c5bae980-5514-11eb-8062-8f50eda83bf6.jpg>)
+![Avatar](<https://github.com/bassref/5143-OS-Edwards/issues/1>)
