@@ -221,9 +221,15 @@ def Scheduler(prioQ):
     ipu2 = IPU()
     ioQ = queue.PriorityQueue()
     terminated = []
+    usage = 0
     
     #while there are jobs inthe queue
     while (prioQ.qsize() or ioQ.qsize()):
+        #check CPU usage
+        if(cpu1.busy):
+            usage+=1
+        if(cpu2.busy):
+            usage+=1
         #check to see if a CPU is not busy
         if((not cpu1.busy) and prioQ.qsize()):
             #send to CPU
@@ -255,7 +261,7 @@ def Scheduler(prioQ):
         #else if the process has terminated
         elif (cpu1.currentProcess.done):
             #add to terminated list
-            terminated.append((cpu1.currentProcess.ID, cpu1.currentProcess.waitTime, cpu1.currentProcess.BT))
+            terminated.append((cpu1.currentProcess.ID, cpu1.currentProcess.waitTime, cpu1.currentProcess.BT, usage))
             cpu1.clear()
         
         #if the process on the CPU2 requires IO
@@ -266,7 +272,7 @@ def Scheduler(prioQ):
         #else if the process has terminated
         elif (cpu2.currentProcess.done):
             #add to terminated list
-            terminated.append((cpu2.currentProcess.ID, cpu2.currentProcess.waitTime, cpu2.currentProcess.BT))
+            terminated.append((cpu2.currentProcess.ID, cpu2.currentProcess.waitTime, cpu2.currentProcess.BT, usage))
             cpu2.clear()
 
         #check to see if a IPU1 is not busy
@@ -381,6 +387,12 @@ def rrScheduler(prioQ):
     
     #while there are jobs inthe queue
     while (prioQ.qsize() or ioQ.qsize()):
+        #checking for usage
+        #check CPU usage
+        if(cpu1.busy):
+            usage+=1
+        if(cpu2.busy):
+            usage+=1
         #check to see if CPU1 is not busy
         if((not cpu1.busy) and prioQ.qsize()):
             #send to CPU
@@ -411,7 +423,7 @@ def rrScheduler(prioQ):
         #else if process has terminated
         elif (cpu1.currentProcess.done):
             #add to terminated list
-            terminated.append(cpu1.currentProcess.ID, cpu1.currentProcess.waitTime, cpu1.currentProcess.BT)
+            terminated.append((cpu1.currentProcess.ID, cpu1.currentProcess.waitTime, cpu1.currentProcess.BT, usage))
             cpu1.clear()
         
         #if the process on the CPU1 requires IO
@@ -422,7 +434,7 @@ def rrScheduler(prioQ):
         #else if process has terminated
         elif (cpu2.currentProcess.done):
             #add to terminated list            
-            terminated.append(cpu2.currentProcess.ID, cpu2.currentProcess.waitTime, cpu2.currentProcess.BT)
+            terminated.append((cpu2.currentProcess.ID, cpu2.currentProcess.waitTime, cpu2.currentProcess.BT,usage))
             cpu2.clear()
 
         #Determine if anything needs to be preempted
@@ -523,13 +535,16 @@ if __name__ =="__main__":
     sumTAT = 0.0
     avgWaitTime = 0.0
     avgTAT = 0.0
-
+    sumUse = 0
+    avgUse = 0
+    tatPercent = 0
     for tup in termin:
         tat = tup[1]+tup[2]
         table3.add_row(str(tup[0]), str(tup[1]), str(tup[2]),str(tat))
         sumWT = sumWT + int(tup[1])
         sumTAT = sumTAT+tat
         newWT = tup[1]
+        sumUse +=tup[3]
         if(newWT>longestWT):
             longestWT = newWT
         elif(newWT<longestWT):
@@ -537,8 +552,11 @@ if __name__ =="__main__":
     
     avgTAT = sumTAT/ len(termin)
     avgWaitTime = sumWT/ len(termin)
+    avgUse = sumUse / len(termin)
+    tatPercent = ((avgTAT/len(termin))/2)*100
     console.print(table3)
-    console.print("Shortest wait time =", shortestWT)
-    console.print("Longest wait time =", longestWT)
-    console.print("Average wait time =", avgWaitTime)
-    console.print("Average turnaround time =", avgTAT)
+    console.print("Shortest wait time = ", shortestWT)
+    console.print("Longest wait time = ", longestWT)
+    console.print("Average wait time = ", avgWaitTime)
+    console.print("Average turnaround time = ", avgTAT)
+    console.print("CPU use % = ", tatPercent)
