@@ -16,7 +16,7 @@ from rich.panel import Panel
 from datetime import datetime
 from time import sleep
 from rich.align import Align
-from rich.console import Console
+from rich.console import Console, RenderGroup
 from rich.layout import Layout
 from rich.live import Live
 from rich.text import Text
@@ -48,6 +48,7 @@ class Process:
         
         self.waitTime = 0
         self.burstTime = 0
+        self.BT = 0
 
         for cburst in C_bursts:
             self.CPU_bursts.append(int(cburst))
@@ -228,18 +229,22 @@ def Scheduler(prioQ):
             #send to CPU
             item = prioQ.get()
             cpu1.assign(item)
-            table.add_row(str(item.ID),"CPU1","Processing",style="green" )
+            table.add_row(str(item.ID),"CPU1","Processing",style="green")
             
 
         if((not cpu2.busy) and prioQ.qsize()):
             item = prioQ.get()
             cpu2.assign(item)
-            table.add_row(str(item.ID),"CPU2","Processing",style="green"  )
+            table.add_row(str(item.ID),"CPU2","Processing",style="green")
             
         
         #actually run process on CPU
         cpu1.tick()
         cpu2.tick()       
+
+        #anything in the Ready Queue needs to have its waitTime increased
+        for process in prioQ.queue:
+            process.BT+=1
         
         #if the process on the CPU1 requires IO
         if(cpu1.currentProcess.waiting):
@@ -250,7 +255,7 @@ def Scheduler(prioQ):
         #else if the process has terminated
         elif (cpu1.currentProcess.done):
             #add to terminated list
-            terminated.append((cpu1.currentProcess.ID, cpu1.currentProcess.waitTime))
+            terminated.append((cpu1.currentProcess.ID, cpu1.currentProcess.waitTime, cpu1.currentProcess.BT))
             cpu1.clear()
         
         #if the process on the CPU2 requires IO
@@ -261,7 +266,7 @@ def Scheduler(prioQ):
         #else if the process has terminated
         elif (cpu2.currentProcess.done):
             #add to terminated list
-            terminated.append((cpu2.currentProcess.ID, cpu2.currentProcess.waitTime))
+            terminated.append((cpu2.currentProcess.ID, cpu2.currentProcess.waitTime, cpu2.currentProcess.BT))
             cpu2.clear()
 
         #check to see if a IPU1 is not busy
@@ -269,14 +274,14 @@ def Scheduler(prioQ):
             #send to IPU
             item = ioQ.get()
             ipu1.assign(item)
-            table.add_row(str(item.ID),"IPU1","Processing" )
+            table.add_row(str(item.ID),"IPU1","Processing IO", style="#ff6f68" )
         
         #check to see if a IPU2 is not busy
         if((not ipu2.busy) and ioQ.qsize()):
             #send to IPU
             item = ioQ.get()
             ipu2.assign(item)
-            table.add_row(str(item.ID),"IPU2","Processing" )
+            table.add_row(str(item.ID),"IPU2","Processing IO", style="#ff6f68" )
         
         #actually run process on I/O PU
         ipu1.tick()
@@ -289,11 +294,13 @@ def Scheduler(prioQ):
         #has IPU1 finished I/O
         if(ipu1.currentProcess.ready):
             prioQ.put(ipu1.currentProcess)
+            ipu1.currentProcess.BT+=1
             table.add_row(str(ipu1.currentProcess.ID),"IPU1","IO burst completed", style="blue" )
             ipu1.clear()
         #has IPU1 finished I/O
         if(ipu2.currentProcess.ready):
             prioQ.put(ipu2.currentProcess)
+            ipu2.currentProcess.BT+=1
             table.add_row(str(ipu2.currentProcess.ID),"IPU2","IO burst completed", style="blue" )
             ipu2.clear()
 
@@ -391,17 +398,20 @@ def rrScheduler(prioQ):
         #actually run process on CPU
         cpu1.tick()
         cpu2.tick()   
+
+        #anything in the Ready Queue needs to have its waitTime increased
+        for process in prioQ.queue:
+            process.BT+=1
         
         #if the process on the CPU1 requires IO
         if(cpu1.currentProcess.waiting):
             ioQ.put(cpu1.currentProcess)
             table.add_row(str(cpu1.currentProcess.item.ID),"Wait Queue","Waiting" , style="yellow")
-            #generateTable(2, (str(cpu1.currentProcess.ID), str(cpu1.currentProcess.ready)))
             cpu1.clear()
         #else if process has terminated
         elif (cpu1.currentProcess.done):
             #add to terminated list
-            terminated.append(info)
+            terminated.append(cpu1.currentProcess.ID, cpu1.currentProcess.waitTime, cpu1.currentProcess.BT)
             cpu1.clear()
         
         #if the process on the CPU1 requires IO
@@ -411,10 +421,8 @@ def rrScheduler(prioQ):
             cpu2.clear()
         #else if process has terminated
         elif (cpu2.currentProcess.done):
-            #add to terminated list
-            #info2 = (cpu2.currentProcess.ID, cpu2.currentProcess.waitTime)
-            terminated.append(info2)
-            #generateTable(3,info2)
+            #add to terminated list            
+            terminated.append(cpu2.currentProcess.ID, cpu2.currentProcess.waitTime, cpu2.currentProcess.BT)
             cpu2.clear()
 
         #Determine if anything needs to be preempted
@@ -503,23 +511,34 @@ if __name__ =="__main__":
    
     #add terminated list to a table
     console = Console()
-    table3 = Table()
-    table3.add_column("Terminated")
-    table3.add_column("Wait Time")
+    table3 = Table(title="Teminated Processes")
+    table3.add_column("Prcess ID", style="#ef7215")
+    table3.add_column("Wait Time",style="#ef7215")
+    table3.add_column("Burst Time",style="#ef7215")
+    table3.add_column("Turnaround Time",style="#ef7215")
     longestWT = termin[0][1]
     shortestWT = termin[0][1]
-    sumWT = 0
+    sumWT = 0.0
+    tat = 0.0
+    sumTAT = 0.0
+    avgWaitTime = 0.0
+    avgTAT = 0.0
+
     for tup in termin:
-        table3.add_row(str(tup[0]), str(tup[1]))
+        tat = tup[1]+tup[2]
+        table3.add_row(str(tup[0]), str(tup[1]), str(tup[2]),str(tat))
         sumWT = sumWT + int(tup[1])
+        sumTAT = sumTAT+tat
         newWT = tup[1]
         if(newWT>longestWT):
             longestWT = newWT
         elif(newWT<longestWT):
             shortestWT = newWT
     
+    avgTAT = sumTAT/ len(termin)
     avgWaitTime = sumWT/ len(termin)
     console.print(table3)
     console.print("Shortest wait time =", shortestWT)
     console.print("Longest wait time =", longestWT)
     console.print("Average wait time =", avgWaitTime)
+    console.print("Average turnaround time =", avgTAT)
