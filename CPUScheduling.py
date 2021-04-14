@@ -23,58 +23,6 @@ from rich.text import Text
 
 clockTick = 0
 
-"""
-Creates the window that stuff will be printed in
-"""
-# class Printer:
-    # def __init__(self):
-    #     self.mylayout = Layout()
-    #     self.console = Console()
-    #     self.table = Table()
-    #     #print(dir(self.mylayout))
-    #     self.mylayout.split(
-    #         Layout(name="Processor", size=1),
-    #         Layout(name="main", ratio=1),
-    #     )
-
-    #     self.mylayout["body"].split(
-    #         Layout(name="CPU", ratio=2),
-    #         Layout(name="IO", ratio=2),
-    #         Layout(name="Ready Queue", ratio=2),
-    #         Layout(name="Wait Queue", ratio=2),
-    #         Layout(name="Terminated", ratio=2),
-    #     )
-
-
-# def generateTable(mode, info):
-#      console = Console()
-
-    
-#      table2 = Table()
-    
-#     table4 = Table()
-    
-#      table2.add_column("Queue")
-    
-
-#      if(mode == 1):
-#          table.add_row(str(info[0]), str(info[1]), str(info[2]))
-#      elif(mode == 2):
-#          table2.add_row(str(info[0]), info[1])
-#      elif(mode == 3):
-#          table3.add_row(str(info[0]), str(info[1]))
-   
-
-#     console.print(table)
-#     console.print(table2)
-#     console.print(table3)
-    
-
-# with Live(generateTable(mode,info ), refresh_per_second=10) as live:
-#     for _ in range(40):
-#         time.sleep(0.4)
-#         live.update(generateTable())
-    
 
 
 '''
@@ -96,6 +44,7 @@ class Process:
         #other attributes about a process
         self.ready = ready
         self.waiting = False
+        self.done = False
         
         self.waitTime = 0
         self.burstTime = 0
@@ -205,6 +154,7 @@ class CPU:
             else:
                 self.currentProcess.ready = False
                 self.currentProcess.waiting = False
+                self.currentProcess.done = True
             
             self.busy = False
 
@@ -269,8 +219,6 @@ def Scheduler(prioQ):
     ipu1 = IPU()
     ipu2 = IPU()
     ioQ = queue.PriorityQueue()
-    #printer = Printer()
-    printList = []
     terminated = []
     
     #while there are jobs inthe queue
@@ -280,27 +228,14 @@ def Scheduler(prioQ):
             #send to CPU
             item = prioQ.get()
             cpu1.assign(item)
-            table.add_row(str(item.ID),"CPU1","Processing" )
-            # printList.append()
-            # printList.append()
-            # printList.append()
-            # generateTable(1, printList)
-            # printList.clear()
-            #printer.mylayout["CPU"].update(str(item.ID))
-            #print(printer.mylayout)
-            #console.print(item.ID)
+            table.add_row(str(item.ID),"CPU1","Processing",style="green" )
+            
 
         if((not cpu2.busy) and prioQ.qsize()):
             item = prioQ.get()
             cpu2.assign(item)
-            table.add_row(str(item.ID),"CPU2","Processing" )
-            # printList.append(str(item.ID))
-            # printList.append("CPU2")
-            # printList.append("Processing")
-            # generateTable(1, printList)
-            # printList.clear()
-            # printer.mylayout["CPU"].update(str(item.ID))
-            # print(printer.mylayout)
+            table.add_row(str(item.ID),"CPU2","Processing",style="green"  )
+            
         
         #actually run process on CPU
         cpu1.tick()
@@ -309,28 +244,24 @@ def Scheduler(prioQ):
         #if the process on the CPU1 requires IO
         if(cpu1.currentProcess.waiting):
             ioQ.put(cpu1.currentProcess)
-            #generateTable(2, (str(cpu1.currentProcess.ID), str(cpu1.currentProcess.ready)))
-            table.add_row(str(cpu1.currentProcess.ID),"Wait Queue","Waiting" )
+            table.add_row(str(cpu1.currentProcess.ID),"Wait Queue","Waiting",style="yellow" )
             cpu1.clear()
             
         #else if the process has terminated
-        elif ((not cpu1.currentProcess.waiting) and (not cpu1.currentProcess.ready)):
+        elif (cpu1.currentProcess.done):
             #add to terminated list
-            terminated.append(info)
+            terminated.append((cpu1.currentProcess.ID, cpu1.currentProcess.waitTime))
             cpu1.clear()
         
         #if the process on the CPU2 requires IO
         if(cpu2.currentProcess.waiting):
             ioQ.put(cpu2.currentProcess)
-            table.add_row(str(cpu1.currentProcess.ID),"Wait Queue","Waiting" )
-            #generateTable(2, (str(cpu2.currentProcess.ID), str(cpu2.currentProcess.ready)))
+            table.add_row(str(cpu2.currentProcess.ID),"Wait Queue","Waiting",style="yellow" )
             cpu2.clear()
         #else if the process has terminated
-        elif ((not cpu2.currentProcess.waiting) and (not cpu2.currentProcess.ready)):
+        elif (cpu2.currentProcess.done):
             #add to terminated list
-            #info2 = (cpu2.currentProcess.ID, cpu2.currentProcess.waitTime)
-            terminated.append(info2)
-            #generateTable(3,info2)
+            terminated.append((cpu2.currentProcess.ID, cpu2.currentProcess.waitTime))
             cpu2.clear()
 
         #check to see if a IPU1 is not busy
@@ -358,14 +289,15 @@ def Scheduler(prioQ):
         #has IPU1 finished I/O
         if(ipu1.currentProcess.ready):
             prioQ.put(ipu1.currentProcess)
-            table.add_row(str(ipu1.currentProcess.ID),"IPU1","IO burst completed" )
+            table.add_row(str(ipu1.currentProcess.ID),"IPU1","IO burst completed", style="blue" )
             ipu1.clear()
         #has IPU1 finished I/O
         if(ipu2.currentProcess.ready):
             prioQ.put(ipu2.currentProcess)
-            table.add_row(str(ipu2.currentProcess.ID),"IPU2","IO burst completed" )
+            table.add_row(str(ipu2.currentProcess.ID),"IPU2","IO burst completed", style="blue" )
             ipu2.clear()
-        
+
+       
     console.print(table)
     return terminated
 
@@ -415,6 +347,7 @@ class rrCPU:
             else:
                 self.currentProcess.ready = False
                 self.currentProcess.waiting = False
+                self.currentProcess.done = True
             
             self.busy = False
         
@@ -437,8 +370,6 @@ def rrScheduler(prioQ):
     ipu1 = IPU()
     ipu2 = IPU()
     ioQ = queue.Queue()
-    #printer = Printer()
-    printList = []
     terminated = []
     
     #while there are jobs inthe queue
@@ -448,27 +379,14 @@ def rrScheduler(prioQ):
             #send to CPU
             item = prioQ.get()
             cpu1.assign(item)
-            table.add_row(str(item.ID),"CPU1","Processing" )
-            # printList.append(str(item.ID))
-            # printList.append("CPU1")
-            # printList.append("Processing")
-            # generateTable(1, printList)
-            # printList.clear()
-            #printer.mylayout["CPU"].update(str(item.ID))
-            #print(printer.mylayout)
-            #console.print(item.ID)
+            table.add_row(str(item.ID),"CPU1","Processing", style="green" )
+            
         #check to see if CPU2 is not busy
         if((not cpu2.busy) and prioQ.qsize()):
             item = prioQ.get()
             cpu2.assign(item)
-            table.add_row(str(item.ID),"CPU2","Processing" )
-            # printList.append(str(item.ID))
-            # printList.append("CPU2")
-            # printList.append("Processing")
-            # generateTable(1, printList)
-            # printList.clear()
-            # printer.mylayout["CPU"].update(str(item.ID))
-            # print(printer.mylayout)
+            table.add_row(str(item.ID),"CPU2","Processing", style="green" )
+            
         
         #actually run process on CPU
         cpu1.tick()
@@ -477,25 +395,22 @@ def rrScheduler(prioQ):
         #if the process on the CPU1 requires IO
         if(cpu1.currentProcess.waiting):
             ioQ.put(cpu1.currentProcess)
-            table.add_row(str(cpu1.currentProcess.item.ID),"Wait Queue","Waiting" )
+            table.add_row(str(cpu1.currentProcess.item.ID),"Wait Queue","Waiting" , style="yellow")
             #generateTable(2, (str(cpu1.currentProcess.ID), str(cpu1.currentProcess.ready)))
             cpu1.clear()
         #else if process has terminated
-        elif ((not cpu1.currentProcess.waiting) and (not cpu1.currentProcess.ready)):
+        elif (cpu1.currentProcess.done):
             #add to terminated list
-            #info = (cpu1.currentProcess.ID, cpu1.currentProcess.waitTime)
             terminated.append(info)
-            #generateTable(3,info)
             cpu1.clear()
         
         #if the process on the CPU1 requires IO
         if(cpu2.currentProcess.waiting):
             ioQ.put(cpu2.currentProcess)
-            table.add_row(str(cpu2.currentProcess.item.ID),"Wait Queue","Waiting" )
-            #generateTable(2, (str(cpu2.currentProcess.ID), str(cpu2.currentProcess.ready)))
+            table.add_row(str(cpu2.currentProcess.item.ID),"Wait Queue","Waiting",style="yellow" )
             cpu2.clear()
         #else if process has terminated
-        elif ((not cpu2.currentProcess.waiting) and (not cpu2.currentProcess.ready)):
+        elif (cpu2.currentProcess.done):
             #add to terminated list
             #info2 = (cpu2.currentProcess.ID, cpu2.currentProcess.waitTime)
             terminated.append(info2)
@@ -531,12 +446,12 @@ def rrScheduler(prioQ):
         #has IPU1 finished I/O
         if(ipu1.currentProcess.ready):
             prioQ.put(ipu1.currentProcess)
-            table.add_row(str(ipu1.currentProcess.item.ID),"IPU1","IO burst completed" )
+            table.add_row(str(ipu1.currentProcess.item.ID),"IPU1","IO burst completed", style="blue" )
             ipu1.clear()
         #has IPU2 finished I/O        
         if(ipu2.currentProcess.ready):
             prioQ.put(ipu2.currentProcess)
-            table.add_row(str(ipu2.currentProcess.item.ID),"IPU2","IO burst completed" )
+            table.add_row(str(ipu2.currentProcess.item.ID),"IPU2","IO burst completed",style="blue" )
             ipu2.clear()
         
         console.print(table)
@@ -555,7 +470,7 @@ if __name__ =="__main__":
     roundrobin_queue = queue.Queue()
     termin = []
 
-    with open('datafile.dat') as reader:
+    with open('datafile2.dat') as reader:
         lines = reader.read().splitlines()
     
     
@@ -590,4 +505,21 @@ if __name__ =="__main__":
     console = Console()
     table3 = Table()
     table3.add_column("Terminated")
+    table3.add_column("Wait Time")
+    longestWT = termin[0][1]
+    shortestWT = termin[0][1]
+    sumWT = 0
+    for tup in termin:
+        table3.add_row(str(tup[0]), str(tup[1]))
+        sumWT = sumWT + int(tup[1])
+        newWT = tup[1]
+        if(newWT>longestWT):
+            longestWT = newWT
+        elif(newWT<longestWT):
+            shortestWT = newWT
+    
+    avgWaitTime = sumWT/ len(termin)
     console.print(table3)
+    console.print("Shortest wait time =", shortestWT)
+    console.print("Longest wait time =", longestWT)
+    console.print("Average wait time =", avgWaitTime)

@@ -47,8 +47,6 @@ def generate_file(**kwargs):
     maxb = kwargs.get('maxb',8)   
     minat = kwargs.get('minat',1)
     maxat = kwargs.get('maxat',3)
-    minprio = kwargs.get('minprio',1)
-    maxprio = kwargs.get('maxprio',9)
 
 
 
@@ -60,9 +58,8 @@ def generate_file(**kwargs):
         for job in range(jobs):   
             fp.write(str(time)+' ')              
             cpub = random.randint(minb,maxb-1)  # num cpu bursts
-            prio = random.randint(minprio,maxprio-1) #generate priority
             fp.write(f"{process_id} ")
-            fp.write(f"{prio}")
+            fp.write(f"{random.randint(0,9)} ")
             fp.write(f"{cpub} ")
             #print(f"burst:{cpub}")
             for burst in range(cpub-1):
@@ -113,3 +110,6 @@ if __name__=='__main__':
     print("Generating file with the following format:\n")
     print("\ttime pid num_cpu_bursts cpub_1 iob_1 cpub2 iob_2 ... cpubn \n")
     generate_file(**kwargs)
+
+
+    
