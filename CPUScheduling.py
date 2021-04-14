@@ -299,18 +299,20 @@ def Scheduler(prioQ):
 
         #has IPU1 finished I/O
         if(ipu1.currentProcess.ready):
+            table.add_row(str(ipu1.currentProcess.ID),"Ready Queue","Ready for CPU", style="red" )
             prioQ.put(ipu1.currentProcess)
             ipu1.currentProcess.BT+=1
             table.add_row(str(ipu1.currentProcess.ID),"IPU1","IO burst completed", style="blue" )
             ipu1.clear()
         #has IPU1 finished I/O
         if(ipu2.currentProcess.ready):
+            table.add_row(str(ipu2.currentProcess.ID),"Ready Queue","Ready for CPU", style="red" )
             prioQ.put(ipu2.currentProcess)
             ipu2.currentProcess.BT+=1
             table.add_row(str(ipu2.currentProcess.ID),"IPU2","IO burst completed", style="blue" )
             ipu2.clear()
 
-       
+    time.sleep(1)
     console.print(table)
     return terminated
 
@@ -384,6 +386,7 @@ def rrScheduler(prioQ):
     ipu2 = IPU()
     ioQ = queue.Queue()
     terminated = []
+    usage = 0
     
     #while there are jobs inthe queue
     while (prioQ.qsize() or ioQ.qsize()):
@@ -418,7 +421,7 @@ def rrScheduler(prioQ):
         #if the process on the CPU1 requires IO
         if(cpu1.currentProcess.waiting):
             ioQ.put(cpu1.currentProcess)
-            table.add_row(str(cpu1.currentProcess.item.ID),"Wait Queue","Waiting" , style="yellow")
+            table.add_row(str(cpu1.currentProcess.ID),"Wait Queue","Waiting" , style="yellow")
             cpu1.clear()
         #else if process has terminated
         elif (cpu1.currentProcess.done):
@@ -429,7 +432,7 @@ def rrScheduler(prioQ):
         #if the process on the CPU1 requires IO
         if(cpu2.currentProcess.waiting):
             ioQ.put(cpu2.currentProcess)
-            table.add_row(str(cpu2.currentProcess.item.ID),"Wait Queue","Waiting",style="yellow" )
+            table.add_row(str(cpu2.currentProcess.ID),"Wait Queue","Waiting",style="yellow" )
             cpu2.clear()
         #else if process has terminated
         elif (cpu2.currentProcess.done):
@@ -447,13 +450,15 @@ def rrScheduler(prioQ):
         if((not ipu1.busy) and ioQ.qsize()):
             #send to IPU
             item = ioQ.get()
-            ipu1.assign(item)      
+            ipu1.assign(item)
+            table.add_row(str(item.ID),"IPU1","Processing IO", style="#ff6f68" )      
         
         #check to see if IPU2 is not busy
         if((not ipu2.busy) and ioQ.qsize()):
             #send to IPU
             item = ioQ.get()
             ipu2.assign(item)
+            table.add_row(str(item.ID),"IPU1","Processing IO", style="#ff6f68" )
         
         #actually run process on I/O PU
         ipu1.tick()
@@ -465,16 +470,20 @@ def rrScheduler(prioQ):
                 
         #has IPU1 finished I/O
         if(ipu1.currentProcess.ready):
+            table.add_row(str(ipu1.currentProcess.ID),"Ready Queue","Ready for CPU", style="red" )
             prioQ.put(ipu1.currentProcess)
-            table.add_row(str(ipu1.currentProcess.item.ID),"IPU1","IO burst completed", style="blue" )
+            ipu1.currentProcess.BT+=1
+            table.add_row(str(ipu1.currentProcess.ID),"IPU1","IO burst completed", style="blue" )
             ipu1.clear()
         #has IPU2 finished I/O        
         if(ipu2.currentProcess.ready):
+            table.add_row(str(ipu2.currentProcess.ID),"Ready Queue","Ready for CPU", style="red" )
             prioQ.put(ipu2.currentProcess)
-            table.add_row(str(ipu2.currentProcess.item.ID),"IPU2","IO burst completed",style="blue" )
+            ipu2.currentProcess.BT+=1
+            table.add_row(str(ipu2.currentProcess.ID),"IPU2","IO burst completed",style="blue" )
             ipu2.clear()
         
-        console.print(table)
+    console.print(table)
     return terminated
 
 
@@ -516,10 +525,10 @@ if __name__ =="__main__":
         roundrobin_queue.put(roundrobininfo)
 
     #pass a job to the scheduler
-    termin = Scheduler(fcfs_queue)
-    # termin = Scheduler(sjf_queue)
-    # termin = Scheduler(ps_queue)
-    # termin = rrScheduler(roundrobin_queue)
+    #termin = Scheduler(fcfs_queue)
+    #termin = Scheduler(sjf_queue)
+    termin = Scheduler(ps_queue)
+    #termin = rrScheduler(roundrobin_queue)
    
     #add terminated list to a table
     console = Console()
@@ -549,11 +558,12 @@ if __name__ =="__main__":
             longestWT = newWT
         elif(newWT<longestWT):
             shortestWT = newWT
+        time.sleep(1)  
     
     avgTAT = sumTAT/ len(termin)
     avgWaitTime = sumWT/ len(termin)
     avgUse = sumUse / len(termin)
-    tatPercent = ((avgTAT/len(termin))/2)*100
+    tatPercent = ((avgTAT/len(termin))/2)
     console.print(table3)
     console.print("Shortest wait time = ", shortestWT)
     console.print("Longest wait time = ", longestWT)
