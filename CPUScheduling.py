@@ -3,26 +3,43 @@ import random
 import threading, queue
 import rich
 import time
-# from rich import layout
 from rich import print
-# from rich import console
-# from rich import columns
 from rich.columns import Columns
-# from rich.console import Console
-from rich.table import Table
 from rich import box
 from rich import panel
 from rich.panel import Panel
 from datetime import datetime
 from time import sleep
 from rich.align import Align
-from rich.console import Console, RenderGroup
+#from rich.console import Console, RenderGroup
 from rich.layout import Layout
 from rich.live import Live
 from rich.text import Text
-
+from rich.console import Console
+from rich.table import Table
+from rich.console import render_group
+import random
+import json
+import sys,os
 clockTick = 0
 
+console = Console()
+layout = Layout()
+
+layout.split(
+    Layout(name="header", size=1),
+    Layout(name="main"),
+    Layout(size=3, name="footer"),
+)
+
+layout["main"].split(
+    Layout(name="left"), 
+    Layout(name="right"),
+    #direction="horizontal"
+)
+
+layout['left'].ratio = 1
+layout['right'].ratio = 1
 
 
 '''
@@ -210,7 +227,7 @@ Schedules jobs to the CPU and IO
 def Scheduler(prioQ):
     console = Console()
     #create a table for the precesses
-    table = Table(title="Processing", expand=True)
+    table = Table(title="Processing")
     table.add_column("ID")
     table.add_column("Process")
     table.add_column("Status")
@@ -312,9 +329,9 @@ def Scheduler(prioQ):
             table.add_row(str(ipu2.currentProcess.ID),"IPU2","IO burst completed", style="blue" )
             ipu2.clear()
 
-    time.sleep(1)
-    console.print(table)
-    return terminated
+    #console.print(table)
+    TP = (table,terminated)
+    return TP
 
 
 '''
@@ -376,7 +393,7 @@ Schedules jobs to the CPU and IO
 '''    
 def rrScheduler(prioQ):
     console = Console()
-    table = Table(title="Processing", expand=True)
+    table = Table(title="Processing")
     table.add_column("ID")
     table.add_column("Process")
     table.add_column("Status")
@@ -483,8 +500,67 @@ def rrScheduler(prioQ):
             table.add_row(str(ipu2.currentProcess.ID),"IPU2","IO burst completed",style="blue" )
             ipu2.clear()
         
-    console.print(table)
-    return terminated
+    TP = (table,terminated)
+    return TP
+
+# def __rich__(self) -> Panel:
+#         return Panel(self.build_table())
+
+def printStuff(procTable, termTable):
+    termin = termTable
+    table = procTable
+    #add terminated list to a table
+    console = Console()
+    table3 = Table(title="Teminated Processes")
+    table3.add_column("Prcess ID", justify="center", style="#ef7215", no_wrap=True)
+    table3.add_column("Wait Time",justify="center", style="cyan",no_wrap=True)
+    table3.add_column("Burst Time",justify="center", style="red",no_wrap=True)
+    table3.add_column("Turnaround Time",justify="center",style="green",no_wrap=True)
+    longestWT = termin[0][1]
+    shortestWT = termin[0][1]
+    sumWT = 0.0
+    tat = 0.0
+    sumTAT = 0.0
+    avgWaitTime = 0.0
+    avgTAT = 0.0
+    sumUse = 0
+    avgUse = 0
+    tatPercent = 0
+    for tup in termin:
+        tat = tup[1]+tup[2]
+        table3.add_row(str(tup[0]), str(tup[1]), str(tup[2]),str(tat))
+        sumWT = sumWT + int(tup[1])
+        sumTAT = sumTAT+tat
+        newWT = tup[1]
+        sumUse +=tup[3]
+        if(newWT>longestWT):
+            longestWT = newWT
+        elif(newWT<longestWT):
+            shortestWT = newWT
+    
+    avgTAT = sumTAT/ len(termin)
+    avgWaitTime = sumWT/ len(termin)
+    avgUse = sumUse / len(termin)
+    tatPercent = ((avgTAT/len(termin))/2)
+
+    table4 = Table()
+    table4.add_row("Shortest wait time = ", str(shortestWT))
+    table4.add_row("Longest wait time = ", str(longestWT))
+    table4.add_row("Average wait time = ", str(avgWaitTime))
+    table4.add_row("Average turnaround time = ", str(avgTAT))
+    table4.add_row("CPU use % = ", str(tatPercent))
+   
+    layout["left"].update(table) 
+    layout["right"].update(table3)
+    layout["footer"].update(table4)
+
+    with Live(layout, screen=True, redirect_stderr=False, refresh_per_second=10) as live:
+        try:
+            while True:
+                sleep(0)
+        except KeyboardInterrupt:
+            pass
+     
 
 
 '''
@@ -527,46 +603,7 @@ if __name__ =="__main__":
     #pass a job to the scheduler
     #termin = Scheduler(fcfs_queue)
     #termin = Scheduler(sjf_queue)
-    termin = Scheduler(ps_queue)
+    table, termin = Scheduler(ps_queue)
     #termin = rrScheduler(roundrobin_queue)
-   
-    #add terminated list to a table
-    console = Console()
-    table3 = Table(title="Teminated Processes")
-    table3.add_column("Prcess ID", style="#ef7215")
-    table3.add_column("Wait Time",style="#ef7215")
-    table3.add_column("Burst Time",style="#ef7215")
-    table3.add_column("Turnaround Time",style="#ef7215")
-    longestWT = termin[0][1]
-    shortestWT = termin[0][1]
-    sumWT = 0.0
-    tat = 0.0
-    sumTAT = 0.0
-    avgWaitTime = 0.0
-    avgTAT = 0.0
-    sumUse = 0
-    avgUse = 0
-    tatPercent = 0
-    for tup in termin:
-        tat = tup[1]+tup[2]
-        table3.add_row(str(tup[0]), str(tup[1]), str(tup[2]),str(tat))
-        sumWT = sumWT + int(tup[1])
-        sumTAT = sumTAT+tat
-        newWT = tup[1]
-        sumUse +=tup[3]
-        if(newWT>longestWT):
-            longestWT = newWT
-        elif(newWT<longestWT):
-            shortestWT = newWT
-        time.sleep(1)  
+    printStuff(table, termin)
     
-    avgTAT = sumTAT/ len(termin)
-    avgWaitTime = sumWT/ len(termin)
-    avgUse = sumUse / len(termin)
-    tatPercent = ((avgTAT/len(termin))/2)
-    console.print(table3)
-    console.print("Shortest wait time = ", shortestWT)
-    console.print("Longest wait time = ", longestWT)
-    console.print("Average wait time = ", avgWaitTime)
-    console.print("Average turnaround time = ", avgTAT)
-    console.print("CPU use % = ", tatPercent)
