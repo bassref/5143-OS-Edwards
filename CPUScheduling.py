@@ -1,3 +1,4 @@
+#!/usr/bin/python
 import sys
 import random
 import threading, queue
@@ -21,25 +22,30 @@ from rich.console import render_group
 import random
 import json
 import sys,os
+
 clockTick = 0
+processList = []
 
 console = Console()
 layout = Layout()
 
 layout.split(
-    Layout(name="header", size=1),
-    Layout(name="main"),
-    Layout(size=3, name="footer"),
+    Layout(name="main")
 )
 
-layout["main"].split(
+layout["main"].split_row(
     Layout(name="left"), 
-    Layout(name="right"),
+    Layout(name="right")
     #direction="horizontal"
 )
 
 layout['left'].ratio = 1
 layout['right'].ratio = 1
+
+fcfs_queue = queue.PriorityQueue()
+sjf_queue = queue.PriorityQueue()
+ps_queue = queue.PriorityQueue()
+roundrobin_queue = queue.Queue()
 
 
 '''
@@ -181,6 +187,7 @@ class CPU:
         self.timeleft = 0
         self.currentProcess = Process(-1,-1,-1,-1,[-1],[-1],-1,False)
 
+    
 
 '''
 IPU Class
@@ -220,6 +227,8 @@ class IPU:
         self.timeleft = 0
         self.currentProcess = Process(-1,-1,-1,-1,[-1],[-1],-1,False)
 
+
+
 '''
 Scheduler Function
 Schedules jobs to the CPU and IO
@@ -227,10 +236,7 @@ Schedules jobs to the CPU and IO
 def Scheduler(prioQ):
     console = Console()
     #create a table for the precesses
-    table = Table(title="Processing")
-    table.add_column("ID")
-    table.add_column("Process")
-    table.add_column("Status")
+    
 
     cpu1 = CPU()
     cpu2 = CPU()
@@ -241,24 +247,26 @@ def Scheduler(prioQ):
     usage = 0
     
     #while there are jobs inthe queue
-    while (prioQ.qsize() or ioQ.qsize()):
+    while ((not (prioQ.empty())) or (not (ioQ.empty()))):
         #check CPU usage
         if(cpu1.busy):
             usage+=1
         if(cpu2.busy):
             usage+=1
         #check to see if a CPU is not busy
-        if((not cpu1.busy) and prioQ.qsize()):
+        if((not cpu1.busy) and (not (prioQ.empty()))):
             #send to CPU
             item = prioQ.get()
             cpu1.assign(item)
-            table.add_row(str(item.ID),"CPU1","Processing",style="green")
+            processList.append((str(item.ID),"CPU1","Processing"))
+            
             
 
-        if((not cpu2.busy) and prioQ.qsize()):
+        if((not cpu2.busy) and (not (prioQ.empty()))):
             item = prioQ.get()
             cpu2.assign(item)
-            table.add_row(str(item.ID),"CPU2","Processing",style="green")
+            processList.append((str(item.ID),"CPU2","Processing"))
+            #table.add_row(str(item.ID),"CPU2","Processing",style="green")
             
         
         #actually run process on CPU
@@ -272,39 +280,47 @@ def Scheduler(prioQ):
         #if the process on the CPU1 requires IO
         if(cpu1.currentProcess.waiting):
             ioQ.put(cpu1.currentProcess)
-            table.add_row(str(cpu1.currentProcess.ID),"Wait Queue","Waiting",style="yellow" )
+            processList.append((str(cpu1.currentProcess.ID),"Wait Queue","Waiting"))
+            #table.add_row(str(cpu1.currentProcess.ID),"Wait Queue","Waiting",style="yellow" )
             cpu1.clear()
             
         #else if the process has terminated
         elif (cpu1.currentProcess.done):
             #add to terminated list
+            processList.append((str(cpu1.currentProcess.ID),"CPU1","CPU Burst Completed"))
+            #table.add_row(str(cpu1.currentProcess.ID),"CPU1","CPU Burst Completed",style="white" )
             terminated.append((cpu1.currentProcess.ID, cpu1.currentProcess.waitTime, cpu1.currentProcess.BT, usage))
             cpu1.clear()
         
         #if the process on the CPU2 requires IO
         if(cpu2.currentProcess.waiting):
             ioQ.put(cpu2.currentProcess)
-            table.add_row(str(cpu2.currentProcess.ID),"Wait Queue","Waiting",style="yellow" )
+            processList.append((str(cpu2.currentProcess.ID),"Wait Queue","Waiting"))
+            #table.add_row(str(cpu2.currentProcess.ID),"Wait Queue","Waiting",style="yellow" )
             cpu2.clear()
         #else if the process has terminated
         elif (cpu2.currentProcess.done):
             #add to terminated list
+            processList.append((str(cpu2.currentProcess.ID),"CPU2","CPU Burst Completed"))
+            #table.add_row(str(cpu2.currentProcess.ID),"CPU2","CPU Burst Completed",style="white" )
             terminated.append((cpu2.currentProcess.ID, cpu2.currentProcess.waitTime, cpu2.currentProcess.BT, usage))
             cpu2.clear()
 
         #check to see if a IPU1 is not busy
-        if((not ipu1.busy) and ioQ.qsize()):
+        if((not ipu1.busy) and (not (ioQ.empty()))):
             #send to IPU
             item = ioQ.get()
             ipu1.assign(item)
-            table.add_row(str(item.ID),"IPU1","Processing IO", style="#ff6f68" )
+            processList.append((str(item.ID),"IPU1","Processing IO"))
+            #table.add_row(str(item.ID),"IPU1","Processing IO", style="#ff6f68" )
         
         #check to see if a IPU2 is not busy
-        if((not ipu2.busy) and ioQ.qsize()):
+        if((not ipu2.busy) and (not (ioQ.empty()))):
             #send to IPU
             item = ioQ.get()
             ipu2.assign(item)
-            table.add_row(str(item.ID),"IPU2","Processing IO", style="#ff6f68" )
+            processList.append((str(item.ID),"IPU2","Processing IO"))
+            #table.add_row(str(item.ID),"IPU2","Processing IO", style="#ff6f68" )
         
         #actually run process on I/O PU
         ipu1.tick()
@@ -316,22 +332,80 @@ def Scheduler(prioQ):
 
         #has IPU1 finished I/O
         if(ipu1.currentProcess.ready):
-            table.add_row(str(ipu1.currentProcess.ID),"Ready Queue","Ready for CPU", style="red" )
+            processList.append((str(ipu1.currentProcess.ID),"Ready Queue","Ready for CPU"))
+            #table.add_row(str(ipu1.currentProcess.ID),"Ready Queue","Ready for CPU", style="red" )
             prioQ.put(ipu1.currentProcess)
             ipu1.currentProcess.BT+=1
-            table.add_row(str(ipu1.currentProcess.ID),"IPU1","IO burst completed", style="blue" )
+            processList.append((str(ipu1.currentProcess.ID),"IPU1","IO burst completed"))
+            #table.add_row(str(ipu1.currentProcess.ID),"IPU1","IO burst completed", style="blue" )
             ipu1.clear()
         #has IPU1 finished I/O
         if(ipu2.currentProcess.ready):
-            table.add_row(str(ipu2.currentProcess.ID),"Ready Queue","Ready for CPU", style="red" )
+            processList.append((str(ipu2.currentProcess.ID),"Ready Queue","Ready for CPU"))
+            #table.add_row(str(ipu2.currentProcess.ID),"Ready Queue","Ready for CPU", style="red" )
             prioQ.put(ipu2.currentProcess)
             ipu2.currentProcess.BT+=1
-            table.add_row(str(ipu2.currentProcess.ID),"IPU2","IO burst completed", style="blue" )
-            ipu2.clear()
+            processList.append((str(ipu2.currentProcess.ID),"IPU2","IO burst completed"))
+            #table.add_row(str(ipu2.currentProcess.ID),"IPU2","IO burst completed", style="blue" )
+            ipu2.clear()          
+        
+    #Table is returned so that final calulations can be done
+    return terminated
+'''
+Class to print the processes
+'''
+class printProc:
+    def __init__(self,pList):
+        self.pList = pList
 
-    #console.print(table)
-    TP = (table,terminated)
-    return TP
+    def makeTable(self):
+        table = Table(title="Processing")
+        table.add_column("ID", justify="center", style="cyan", no_wrap=True)
+        table.add_column("Process", justify="center", style="cyan", no_wrap=True)
+        table.add_column("Status", justify="center", style="cyan", no_wrap=True)
+        
+        #listed = list(self.pList)
+        if(not len(self.pList) ==0):
+            for item in self.pList:
+                IDNum = str(item[0])
+                where = str(item[1])
+                doing = str(item[2])
+                table.add_row(IDNum,where,doing,style="green")
+
+        return table
+
+    def __rich__(self) -> Panel:
+        return Panel(self.makeTable())
+
+'''
+Class to print the tables of terminated processes
+'''
+class printTerm:
+    def __init__(self,pList):
+        self.pList = pList
+
+    def makeTable(self):
+        table3 = Table(title="Teminated Processes")
+        table3.add_column("Process ID", justify="center", style="#ef7215", no_wrap=True)
+        table3.add_column("Wait Time",justify="center", style="cyan",no_wrap=True)
+        table3.add_column("Burst Time",justify="center", style="red",no_wrap=True)
+        table3.add_column("Turnaround Time",justify="center",style="green",no_wrap=True)
+
+        if(not len(self.pList) ==0):
+            for item in self.pList:
+                IDNum = str(item[0])
+                waitT = str(item[1])
+                burstT = str(item[2])
+                usage = str(item[3])
+                tat = str(item[1]+item[2])
+                table3.add_row(IDNum,waitT,burstT,tat, style="yellow")
+                #(str(tup[0]), str(tup[1]), str(tup[2]),str(tat))
+                #table.add_row(IDNum,waitT,burstT,usage, style="yellow")
+
+        return table3
+
+    def __rich__(self) -> Panel:
+        return Panel(self.makeTable())
 
 
 '''
@@ -393,10 +467,16 @@ Schedules jobs to the CPU and IO
 '''    
 def rrScheduler(prioQ):
     console = Console()
+    #creating the tables 
     table = Table(title="Processing")
     table.add_column("ID")
     table.add_column("Process")
     table.add_column("Status")
+    table3 = Table(title="Teminated Processes")
+    table3.add_column("Prcess ID", justify="center", style="#ef7215", no_wrap=True)
+    table3.add_column("Wait Time",justify="center", style="cyan",no_wrap=True)
+    table3.add_column("Burst Time",justify="center", style="red",no_wrap=True)
+    table3.add_column("Turnaround Time",justify="center",style="green",no_wrap=True)
     cpu1 = rrCPU()
     cpu2 = rrCPU()
     ipu1 = IPU()
@@ -443,6 +523,7 @@ def rrScheduler(prioQ):
         #else if process has terminated
         elif (cpu1.currentProcess.done):
             #add to terminated list
+            table.add_row(str(cpu1.currentProcess.ID),"CPU1","CPU Burst Completed",style="white" )
             terminated.append((cpu1.currentProcess.ID, cpu1.currentProcess.waitTime, cpu1.currentProcess.BT, usage))
             cpu1.clear()
         
@@ -453,7 +534,8 @@ def rrScheduler(prioQ):
             cpu2.clear()
         #else if process has terminated
         elif (cpu2.currentProcess.done):
-            #add to terminated list            
+            #add to terminated list  
+            table.add_row(str(cpu2.currentProcess.ID),"CPU2","CPU Burst Completed",style="white" )          
             terminated.append((cpu2.currentProcess.ID, cpu2.currentProcess.waitTime, cpu2.currentProcess.BT,usage))
             cpu2.clear()
 
@@ -500,22 +582,22 @@ def rrScheduler(prioQ):
             table.add_row(str(ipu2.currentProcess.ID),"IPU2","IO burst completed",style="blue" )
             ipu2.clear()
         
-    TP = (table,terminated)
-    return TP
+        for tup in terminated:
+            tat = tup[1]+tup[2]
+            table3.add_row(str(tup[0]), str(tup[1]), str(tup[2]),str(tat)) 
+        with Live(layout, screen=True, redirect_stderr=False, refresh_per_second=10) as live:
+            layout["left"].update(table)
+            layout["right"].update(table3)
+            sleep(0.3)
+    
+    return terminated
 
-# def __rich__(self) -> Panel:
-#         return Panel(self.build_table())
 
-def printStuff(procTable, termTable):
+
+def printStuff(termTable):
     termin = termTable
-    table = procTable
-    #add terminated list to a table
     console = Console()
-    table3 = Table(title="Teminated Processes")
-    table3.add_column("Prcess ID", justify="center", style="#ef7215", no_wrap=True)
-    table3.add_column("Wait Time",justify="center", style="cyan",no_wrap=True)
-    table3.add_column("Burst Time",justify="center", style="red",no_wrap=True)
-    table3.add_column("Turnaround Time",justify="center",style="green",no_wrap=True)
+    
     longestWT = termin[0][1]
     shortestWT = termin[0][1]
     sumWT = 0.0
@@ -528,7 +610,6 @@ def printStuff(procTable, termTable):
     tatPercent = 0
     for tup in termin:
         tat = tup[1]+tup[2]
-        table3.add_row(str(tup[0]), str(tup[1]), str(tup[2]),str(tat))
         sumWT = sumWT + int(tup[1])
         sumTAT = sumTAT+tat
         newWT = tup[1]
@@ -537,29 +618,19 @@ def printStuff(procTable, termTable):
             longestWT = newWT
         elif(newWT<longestWT):
             shortestWT = newWT
+        
     
     avgTAT = sumTAT/ len(termin)
     avgWaitTime = sumWT/ len(termin)
     avgUse = sumUse / len(termin)
     tatPercent = ((avgTAT/len(termin))/2)
 
-    table4 = Table()
-    table4.add_row("Shortest wait time = ", str(shortestWT))
-    table4.add_row("Longest wait time = ", str(longestWT))
-    table4.add_row("Average wait time = ", str(avgWaitTime))
-    table4.add_row("Average turnaround time = ", str(avgTAT))
-    table4.add_row("CPU use % = ", str(tatPercent))
-   
-    layout["left"].update(table) 
-    layout["right"].update(table3)
-    layout["footer"].update(table4)
-
-    with Live(layout, screen=True, redirect_stderr=False, refresh_per_second=10) as live:
-        try:
-            while True:
-                sleep(0)
-        except KeyboardInterrupt:
-            pass
+        
+    console.print("Shortest wait time = ", str(shortestWT))
+    console.print("Longest wait time = ", str(longestWT))
+    console.print("Average wait time = ", str(avgWaitTime))
+    console.print("Average turnaround time = ", str(avgTAT))
+    console.print("CPU use % = ", str(tatPercent))  
      
 
 
@@ -567,17 +638,13 @@ def printStuff(procTable, termTable):
 MAIN
 '''
 if __name__ =="__main__":
-
+    #console.print(time.localtime(time.time()))
     # each algorithm has it's own queue
-    fcfs_queue = queue.PriorityQueue()
-    sjf_queue = queue.PriorityQueue()
-    ps_queue = queue.PriorityQueue()
-    roundrobin_queue = queue.Queue()
+    
     termin = []
 
     with open('datafile2.dat') as reader:
         lines = reader.read().splitlines()
-    
     
     #iterate through the list of data and assign arrival time and ID then add the remainder to a list
     for item in lines:
@@ -602,8 +669,26 @@ if __name__ =="__main__":
 
     #pass a job to the scheduler
     #termin = Scheduler(fcfs_queue)
-    #termin = Scheduler(sjf_queue)
-    table, termin = Scheduler(ps_queue)
+    termin = Scheduler(sjf_queue)
+    #termin = Scheduler(ps_queue)
     #termin = rrScheduler(roundrobin_queue)
-    printStuff(table, termin)
+    
+    P = printProc(processList)
+    T = printTerm(termin)
+
+    layout["left"].update(P)
+    layout["right"].update(T)
+
+    with Live(layout, screen=True, redirect_stderr=False) as live:
+            try:
+                while True:
+                    sleep(0)
+            except KeyboardInterrupt:
+                pass
+    
+    printStuff(termin)
+    with open("outStuff.txt", 'w') as writer:
+        writer.writelines(str(T))
+        writer.close()
+   
     
