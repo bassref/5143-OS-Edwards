@@ -30,7 +30,9 @@ console = Console()
 layout = Layout()
 
 layout.split(
-    Layout(name="main")
+    Layout(name="main"),
+    Layout(name="footer")
+
 )
 
 layout["main"].split_row(
@@ -559,11 +561,23 @@ def printStuff(termTable):
     tatPercent = ((avgTAT/len(termin))/2)
 
         
-    console.print("Shortest wait time = ", str(shortestWT))
-    console.print("Longest wait time = ", str(longestWT))
-    console.print("Average wait time = ", str(avgWaitTime))
-    console.print("Average turnaround time = ", str(avgTAT))
-    console.print("CPU use % = ", str(tatPercent))  
+    # console.print("Shortest wait time = ", str(shortestWT))
+    # console.print("Longest wait time = ", str(longestWT))
+    # console.print("Average wait time = ", str(avgWaitTime))
+    # console.print("Average turnaround time = ", str(avgTAT))
+    # console.print("CPU use % = ", str(tatPercent))  
+
+    table2 = Table(title="Summary")
+    table2.add_column("Shortest wait time", justify="center", style="#ef7215", no_wrap=True)
+    table2.add_column("Longest wait time",justify="center", style="cyan",no_wrap=True)
+    table2.add_column("Average wait time",justify="center", style="red",no_wrap=True)
+    table2.add_column("Average turnaround time",justify="center",style="green",no_wrap=True)
+    table2.add_column("CPU use % =",justify="center",style="green",no_wrap=True)
+    table2.add_row(str(shortestWT),str(longestWT),str(avgWaitTime),str(avgTAT), str(tatPercent))
+
+    with Live(layout, screen=True, redirect_stderr=False) as live:
+        layout["footer"].update(table2)
+        sleep(500)
      
 
 
@@ -578,7 +592,7 @@ if __name__ =="__main__":
     
     termin = []
 
-    with open('datafile50.dat') as reader:
+    with open('datafile3.dat') as reader:
         lines = reader.read().splitlines()
     
     #iterate through the list of data and assign arrival time and ID then add the remainder to a list
@@ -609,5 +623,6 @@ if __name__ =="__main__":
     termin = rrScheduler(roundrobin_queue,int(cpuNum),int(ipuNum))
           
     printStuff(termin)
+    
    
     
